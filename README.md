@@ -1,104 +1,337 @@
-<p align="center">
-  <img src="baton_cover.png" alt="Baton" width="720" />
-</p>
+# Runlock
 
-# Baton
+**The autonomous survival layer for onchain treasuries.**
 
-**Self custody that outlives you.**
+[![CI](https://github.com/Fatumayattani/runlock/actions/workflows/ci.yml/badge.svg)](https://github.com/Fatumayattani/runlock/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-111827.svg)](LICENSE)
 
-Crypto gives complete ownership while you are alive and almost no usable handover when you are gone. Analysts estimate millions of BTC, worth hundreds of billions of dollars, are permanently inaccessible, with owners dying without passing on access among the leading causes. Baton fixes the handover.
+Runlock detects when an onchain treasury is approaching an operational runway crisis, prepares a policy-compliant recovery plan, and routes the exact approved actions through KeeperHub for deterministic simulation and execution.
 
-Baton is a revocable onchain estate. Place assets in it, name your beneficiaries, and confirm you are active with a periodic heartbeat. If you go silent past your heartbeat interval and grace period, the estate unlocks and the people you chose claim their share by signing in with the email they already have. No seed phrases. No bridges. No gas purchases. No crypto knowledge required to inherit.
+An agent can recommend what should happen. It should not reinterpret that recommendation while moving funds. Runlock separates treasury intelligence from transaction execution: the recovery plan is compiled, reviewed, hashed, simulated and approved before any transaction is broadcast.
 
-Built solo for the UXmaxx Hackathon 2026.
+> Built for the KeeperHub Integrations Hackathon: KeeperHub is the execution layer, Safe is the treasury, and Superfluid streams are the recurring obligations Runlock protects and manages.
 
-## Links
+## The problem
 
-| What | Where |
-| --- | --- |
-| Live app | https://batonhq.vercel.app |
-| Pitch deck (10 slides) | https://batonhq.vercel.app/pitch |
-| Documentation | https://batonhq.vercel.app/docs |
-| Demo video | ADD_YOUTUBE_LINK_HERE |
-| BatonEstate contract | https://sepolia.arbiscan.io/address/0x26134528c56099B50Cf29af629389d1DCb192334 |
-| MockUSDC contract | https://sepolia.arbiscan.io/address/0xb0BA9513cfbfad27EA231e0a9EdA4142CE548B7E |
+Onchain treasuries can hold assets and still fail operationally.
 
-## How it works
+A treasury team may have funds spread across liquid balances and SuperTokens while continuous streams keep draining reserves. By the time a low balance becomes obvious, the team is already choosing between interrupting critical payments and making rushed transactions.
 
-1. **Create.** Sign in with Magic (email OTP, wallet created silently). Name up to three beneficiaries with percentage shares, set your heartbeat interval and grace period, optionally set a guardian. A random claim secret is generated per beneficiary in your browser; only its keccak256 hash goes onchain.
-2. **Fund.** Deposit ETH and tokens. The estate is fully revocable: withdraw anything or cancel entirely at any time before activation.
-3. **Carry.** Press "Keep carrying the baton" to reset your clock. Production intervals are months; Demo Mode compresses to 2 minutes + 1 minute grace so the full lifecycle can be watched live.
-4. **Pass.** After the clock and grace period lapse, anyone can activate the estate (or only the guardian, if set). Balances snapshot so claim order cannot change shares.
-5. **Receive.** Each beneficiary opens their claim link, signs in with their own email, and accepts. Magic creates their wallet on the spot, the app sponsors their gas invisibly, and the contract pays out their percentage.
+Existing dashboards show balances. Runlock answers the harder questions:
 
-## Deployed contracts (Arbitrum Sepolia, chain id 421614)
+- How many days can this treasury continue operating?
+- Which obligations are driving the burn?
+- Which payments must never be interrupted?
+- What is the smallest policy-compliant intervention?
+- Can the intervention be simulated exactly before execution?
+- Can every resulting action be verified afterward?
 
-| Contract | Address |
-| --- | --- |
-| BatonEstate | [`0x26134528c56099B50Cf29af629389d1DCb192334`](https://sepolia.arbiscan.io/address/0x26134528c56099B50Cf29af629389d1DCb192334) |
-| MockUSDC (test asset, open faucet) | [`0xb0BA9513cfbfad27EA231e0a9EdA4142CE548B7E`](https://sepolia.arbiscan.io/address/0xb0BA9513cfbfad27EA231e0a9EdA4142CE548B7E) |
+## How Runlock works
 
-## Architecture
-
-```
-contracts/            Foundry project
-  src/BatonEstate.sol   estates, heartbeats, guardians, commitments, claims
-  src/MockUSDC.sol      6-decimal test token with open faucet
-  test/                 20 tests covering the full lifecycle
-
-baton-app/            Next.js 14 app
-  app/page.tsx          landing + Magic email sign in
-  app/dashboard/        owner: create, fund, heartbeat, links, revoke
-  app/claim/            beneficiary: sign in, sponsored gas, accept
-  app/api/gas/          server route sponsoring heir gas (testnet convenience)
-  app/docs              documentation with sidebar navigation
-  app/pitch             10 slide pitch deck
+```mermaid
+flowchart TD
+    A["Safe treasury"] --> C["Treasury snapshot"]
+    B["Superfluid streams"] --> C
+    C --> D["Runway and risk engine"]
+    D --> E["Policy-bound recovery manifest"]
+    E --> F["Human review and hash approval"]
+    F --> G["KeeperHub simulation"]
+    G --> H["KeeperHub execution and receipts"]
 ```
 
-**Contract design.** Beneficiaries are stored as keccak256 commitments of claim secrets with shares in basis points totalling 10,000. Expiry is `lastHeartbeat + interval + grace` judged by block time, so no server or cron is trusted. Activation snapshots balances; `claim(estateId, index, secret)` pays the share of the snapshot to `msg.sender` when the secret matches, binding the heir wallet at claim time (heirs are named by email, so their address cannot be known in advance). Withdraw and cancel work any time before activation, never after. All value paths are reentrancy guarded.
+1. Runlock reads the configured Safe balances and active Superfluid streams.
+2. The runway engine calculates net burn, protected reserves and the estimated depletion time.
+3. If runway falls below policy, Runlock compiles a deterministic recovery manifest.
+4. Policy checks reject unsafe chains, contracts, values or protected recipients.
+5. The complete manifest is canonicalized and committed to a SHA-256 hash.
+6. KeeperHub simulates the exact contract calls contained in that manifest.
+7. A human approves the displayed hash.
+8. Runlock recomputes the hash and sends the unchanged calls to KeeperHub.
+9. Transaction receipts and idempotency keys create an auditable execution record.
 
-**Privacy.** Nothing personal touches the chain. Names and emails stay in the owner's browser. Onchain: hashes, percentages, timestamps, balances.
+Nothing is inferred at execution time.
 
-**Walletless UX.** Magic embedded wallets on both sides (email OTP, no seed phrase step). The claim page silently tops up the heir wallet with gas through a server route before the accept press, so a first-time user inherits without knowing gas exists.
+## Demonstration scenario
+
+The included scenario models a treasury with only **19.4 days of runway**, below its **21-day minimum**.
+
+| Treasury signal | Value |
+| --- | ---: |
+| Liquid operating reserves | 530 USDC and USDCx |
+| Net monthly burn | 820 USDC |
+| Current runway | 19.4 days |
+| Minimum permitted runway | 21 days |
+| Target recovery runway | 30 days |
+
+Core engineering and operations payments are protected by policy. Runlock therefore prepares three bounded actions:
+
+1. Wrap 75 USDC into USDCx to support streaming liquidity.
+2. Reduce the non-protected community rewards stream.
+3. Pause the non-critical experimental tooling stream.
+
+The resulting plan restores projected runway to 30 days without touching protected recipients. KeeperHub receives the exact reviewed calls for simulation and, only after approval, testnet execution.
+
+## Why KeeperHub is essential
+
+Runlock does not use KeeperHub as a generic transaction relay. KeeperHub provides the execution boundary between an analytical treasury agent and onchain value movement.
+
+| KeeperHub capability | Runlock usage |
+| --- | --- |
+| Contract-call execution | Executes compiled Safe and Superfluid recovery actions |
+| Simulation | Preflights the same calldata later used for execution |
+| Idempotency | Prevents retries from duplicating completed actions |
+| Retry infrastructure | Handles recoverable failures without regenerating the plan |
+| Audit trail | Connects each manifest action to its execution result |
+| Non-custodial infrastructure | Keeps signing outside the analytical agent |
+
+Runlock uses `POST /api/execute/contract-call` for both preflight and execution. Superfluid operations are compiled into explicit contract calls because the execution payload must remain identical after approval.
+
+## Deterministic execution
+
+The recovery manifest contains:
+
+- Treasury snapshot
+- Policy version
+- Network and contract addresses
+- Ordered recovery actions
+- Exact calldata and transaction values
+- Creation and expiry timestamps
+- Expected runway improvement
+
+The complete manifest is canonicalized and hashed.
+
+Simulation, approval and execution must all reference that same hash. If balances, policy, actions or calldata change, the hash changes and the previous approval becomes invalid.
+
+## Safety model
+
+Runlock fails closed. Execution is rejected unless:
+
+- The chain is explicitly allowed by treasury policy.
+- Every target contract is allowlisted.
+- No action modifies a protected recipient.
+- Every action remains below its configured value ceiling.
+- The recovery manifest has not expired.
+- KeeperHub simulation succeeded.
+- The approved hash matches the server-recomputed hash.
+- The execution payload matches the simulated payload.
+- The action has not already completed under its idempotency key.
+
+The first failed action stops the sequence. A partially completed plan can resume from the first incomplete action without repeating successful transactions.
+
+## Current implementation
+
+| Capability | Status |
+| --- | --- |
+| Deterministic runway calculation | Implemented |
+| Risk classification | Implemented |
+| Recovery-plan compiler | Implemented |
+| Policy enforcement | Implemented |
+| Canonical manifest hashing | Implemented |
+| Protected-recipient enforcement | Implemented |
+| KeeperHub execution adapter | Implemented |
+| Simulation and approval gating | Implemented |
+| Per-action idempotency | Implemented |
+| Domain and safety tests | 13 passing |
+| Live Safe integration | In progress |
+| Live Superfluid integration | In progress |
+| Public deployment | In progress |
+| Verified KeeperHub testnet transaction | Required before submission |
+
+Demo receipts are explicitly marked with `mode: "demo"` and must never be presented as hackathon transaction evidence.
 
 ## Run locally
 
+### Requirements
+
+- Node.js 22.13 or newer
+- pnpm 11.25.0
+
+Clone the repository:
+
 ```bash
-# contracts
-forge install foundry-rs/forge-std
-forge test                          # 20 passing
-
-# app
-cd baton-app
-npm install
-# create .env.local with the values below
-npm run dev                         # http://localhost:3000
+git clone https://github.com/Fatumayattani/runlock.git
+cd runlock
 ```
 
-`.env.local`:
+Install dependencies:
 
-```
-NEXT_PUBLIC_MAGIC_KEY=pk_live_...   # Magic publishable key (dashboard.magic.link)
-PK=0x...                            # testnet sponsor key for heir gas (server side only)
-RPC=https://sepolia-rollup.arbitrum.io/rpc
+```bash
+pnpm install
 ```
 
-The owner's Magic wallet needs a little Arbitrum Sepolia ETH for gas. Test mUSDC comes from the in-app faucet button.
+Create the local environment file:
 
-## Demo flow (3 minutes in Demo Mode)
+```bash
+cp .env.example .env
+```
 
-Create estate with Demo Mode on, deposit ETH and mUSDC, press the heartbeat once, copy the claim link, then stop. The countdown dies, the status flips to Ready to pass, and the claim link (opened in incognito with a different email) walks through sign in, sponsored gas, and Accept the Baton, ending with assets in a wallet that did not exist two minutes earlier.
+Start Runlock:
 
-## Security model and honest limitations
+```bash
+pnpm dev
+```
 
-The owner is protected by layers: full revocability before activation, the grace period, the ability to heartbeat back even after expiry (right up until activation), and an optional guardian who must confirm before claims open. Baton can only ever distribute what was explicitly deposited.
+Runlock starts in demo mode and does not require an API key. Open the local URL printed by the terminal.
 
-Prototype limitations, stated plainly: testnet assets only; claim links are bearer secrets (production adds verified beneficiary identity and guardian co-signing); gas sponsorship is an app route (production: account abstraction paymasters); no audit yet; Baton complements a legal will, it does not replace one.
+## Verify the project
 
-## Roadmap
+```bash
+pnpm test
+pnpm typecheck
+pnpm build
+```
 
-Mainnet with audited contracts. Cross-chain estate funding through chain abstraction so one tap gathers assets from every chain into the reserve. Verified beneficiary identity and notifications. Guardian co-signing on claims. Integrations with the legal estate world.
+## Demo mode and live mode
 
----
+### Demo mode
 
-**Carry it. Protect it. Pass it on.**
+Demo mode exercises:
+
+- Treasury runway calculations
+- Risk classification
+- Recovery-plan generation
+- Policy enforcement
+- Manifest hashing
+- Simulation states
+- Approval gating
+- Audit history
+- Idempotency behavior
+
+It does not broadcast transactions.
+
+### Live mode
+
+Live broadcasting is disabled by default.
+
+Follow [`docs/KEEPERHUB_SETUP.md`](docs/KEEPERHUB_SETUP.md) before enabling it.
+
+```env
+RUNLOCK_MODE=live
+RUNLOCK_LIVE_EXECUTION=true
+KEEPERHUB_API_KEY=kh_...
+```
+
+Live mode requires:
+
+- A KeeperHub organization API key
+- A configured KeeperHub wallet or Safe smart account
+- Verified testnet contract addresses
+- A configured Safe treasury
+- Superfluid testnet streams
+- Testnet gas and tokens
+
+Never commit `.env`.
+
+## KeeperHub execution lifecycle
+
+```mermaid
+sequenceDiagram
+    participant U as Treasury operator
+    participant R as Runlock
+    participant K as KeeperHub
+    participant C as Testnet
+
+    R->>R: Build and hash recovery manifest
+    U->>R: Request simulation
+    R->>K: Submit exact calls with simulate=true
+    K-->>R: Return simulation results
+    U->>R: Approve manifest hash
+    R->>R: Recompute and verify hash
+    R->>K: Submit unchanged calls
+    K->>C: Broadcast transactions
+    C-->>K: Return receipts
+    K-->>R: Return execution record
+```
+
+## Repository structure
+
+```text
+app/
+  api/
+    snapshot/             Treasury snapshot endpoint
+    plan/                 Recovery-plan endpoint
+    keeperhub/
+      simulate/           KeeperHub preflight endpoint
+      execute/            KeeperHub execution endpoint
+  dashboard.tsx           Treasury command center
+
+lib/runlock/
+  canonical.ts            Canonical JSON and SHA-256 commitments
+  demo.ts                 Reproducible demo scenario
+  keeperhub.ts            Execution and idempotency adapter
+  math.ts                 Runway and flow-rate calculations
+  plan.ts                 Recovery compiler and policy checks
+  types.ts                Shared domain types
+
+config/
+  policy.example.json     Example treasury policy
+
+docs/
+  ARCHITECTURE.md         System boundaries and execution lifecycle
+  KEEPERHUB_SETUP.md      KeeperHub configuration and safeguards
+  DEMO_SCRIPT.md          Demonstration flow
+  BOUNTY_ISSUE_DRAFT.md   Upstream feature proposal
+
+tests/
+  runlock.test.ts         Domain and execution-safety tests
+```
+
+## Development roadmap
+
+Development is organized into four reviewable milestones:
+
+1. Rebuild the Runlock treasury command center.
+2. Connect live Safe and Superfluid treasury data.
+3. Complete deterministic KeeperHub testnet execution.
+4. Harden, deploy and prepare verifiable submission evidence.
+
+Each milestone is tracked through a separate GitHub issue and pull request.
+
+## Hackathon submission structure
+
+### Main track
+
+**Runlock: The autonomous survival layer for onchain treasuries**
+
+This repository contains the complete Safe, Superfluid and KeeperHub integration.
+
+### KeeperHub feature bounty
+
+**Treasury Runway Analysis for KeeperHub**
+
+The bounty is a separate upstream contribution to [`KeeperHub/keeperhub`](https://github.com/KeeperHub/keeperhub). It proposes a generic KeeperHub capability for calculating:
+
+- Net treasury burn
+- Remaining runway
+- Estimated depletion time
+- Required recovery amount
+- Safe, warning or critical status
+- Machine-readable policy output
+
+Runlock does not depend on the upstream contribution being merged.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [KeeperHub setup](docs/KEEPERHUB_SETUP.md)
+- [Demo script](docs/DEMO_SCRIPT.md)
+- [KeeperHub bounty proposal](docs/BOUNTY_ISSUE_DRAFT.md)
+- [Contributing](CONTRIBUTING.md)
+
+## Contributing
+
+Contributions should be focused, tested and connected to an existing issue.
+
+Before opening a pull request:
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm build
+```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution workflow.
+
+## License
+
+[MIT](LICENSE)

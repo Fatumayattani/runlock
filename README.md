@@ -1,128 +1,104 @@
-# Runlock
+<p align="center">
+  <img src="baton_cover.png" alt="Baton" width="720" />
+</p>
 
-**The autonomous survival layer for onchain treasuries.**
+# Baton
 
-Runlock watches a Safe treasury and its Superfluid obligations, calculates how long operations can continue, and prepares a policy-bound recovery plan. KeeperHub simulates and executes the exact reviewed contract calls. Nothing is reinterpreted at execution time.
+**Self custody that outlives you.**
 
-## Why it exists
+Crypto gives complete ownership while you are alive and almost no usable handover when you are gone. Analysts estimate millions of BTC, worth hundreds of billions of dollars, are permanently inaccessible, with owners dying without passing on access among the leading causes. Baton fixes the handover.
 
-Treasuries often hold enough value but still fail operationally because liquid balances, streams and reserve policy are managed separately. An agent can identify the problem, but an agent should not improvise while moving funds. Runlock separates the probabilistic decision from deterministic execution.
+Baton is a revocable onchain estate. Place assets in it, name your beneficiaries, and confirm you are active with a periodic heartbeat. If you go silent past your heartbeat interval and grace period, the estate unlocks and the people you chose claim their share by signing in with the email they already have. No seed phrases. No bridges. No gas purchases. No crypto knowledge required to inherit.
 
-## Demo scenario
+Built solo for the UXmaxx Hackathon 2026.
 
-- A Sepolia Safe has 530 USDC/USDCx in liquid operating reserves.
-- Active Superfluid streams and fixed expenses create an 820 USDC monthly net burn.
-- Current runway is 19.4 days, below the 21-day policy floor.
-- Core engineering and operations streams are protected.
-- Runlock compiles three approved calls: wrap 75 USDC, throttle community rewards, and pause experimental tooling.
-- Projected runway becomes 30 days.
-- KeeperHub preflights those exact calls and executes only after hash-bound human approval.
+## Links
 
-## What is included
+| What | Where |
+| --- | --- |
+| Live app | https://batonhq.vercel.app |
+| Pitch deck (10 slides) | https://batonhq.vercel.app/pitch |
+| Documentation | https://batonhq.vercel.app/docs |
+| Demo video | ADD_YOUTUBE_LINK_HERE |
+| BatonEstate contract | https://sepolia.arbiscan.io/address/0x26134528c56099B50Cf29af629389d1DCb192334 |
+| MockUSDC contract | https://sepolia.arbiscan.io/address/0xb0BA9513cfbfad27EA231e0a9EdA4142CE548B7E |
 
-- Responsive treasury command center
-- Safe ownership, threshold and nonce model
-- Superfluid stream inventory
-- Deterministic runway calculations
-- Protected-recipient and allowlist policy engine
-- Canonical SHA-256 recovery manifests
-- KeeperHub direct execution adapter
-- Mandatory preflight simulation
-- Approval hash verification
-- Per-action deterministic idempotency keys
-- Browser audit history and explorer links
-- Eleven domain and safety tests
-- KeeperHub setup, architecture, demo and bounty documentation
+## How it works
+
+1. **Create.** Sign in with Magic (email OTP, wallet created silently). Name up to three beneficiaries with percentage shares, set your heartbeat interval and grace period, optionally set a guardian. A random claim secret is generated per beneficiary in your browser; only its keccak256 hash goes onchain.
+2. **Fund.** Deposit ETH and tokens. The estate is fully revocable: withdraw anything or cancel entirely at any time before activation.
+3. **Carry.** Press "Keep carrying the baton" to reset your clock. Production intervals are months; Demo Mode compresses to 2 minutes + 1 minute grace so the full lifecycle can be watched live.
+4. **Pass.** After the clock and grace period lapse, anyone can activate the estate (or only the guardian, if set). Balances snapshot so claim order cannot change shares.
+5. **Receive.** Each beneficiary opens their claim link, signs in with their own email, and accepts. Magic creates their wallet on the spot, the app sponsors their gas invisibly, and the contract pays out their percentage.
+
+## Deployed contracts (Arbitrum Sepolia, chain id 421614)
+
+| Contract | Address |
+| --- | --- |
+| BatonEstate | [`0x26134528c56099B50Cf29af629389d1DCb192334`](https://sepolia.arbiscan.io/address/0x26134528c56099B50Cf29af629389d1DCb192334) |
+| MockUSDC (test asset, open faucet) | [`0xb0BA9513cfbfad27EA231e0a9EdA4142CE548B7E`](https://sepolia.arbiscan.io/address/0xb0BA9513cfbfad27EA231e0a9EdA4142CE548B7E) |
+
+## Architecture
+
+```
+contracts/            Foundry project
+  src/BatonEstate.sol   estates, heartbeats, guardians, commitments, claims
+  src/MockUSDC.sol      6-decimal test token with open faucet
+  test/                 20 tests covering the full lifecycle
+
+baton-app/            Next.js 14 app
+  app/page.tsx          landing + Magic email sign in
+  app/dashboard/        owner: create, fund, heartbeat, links, revoke
+  app/claim/            beneficiary: sign in, sponsored gas, accept
+  app/api/gas/          server route sponsoring heir gas (testnet convenience)
+  app/docs              documentation with sidebar navigation
+  app/pitch             10 slide pitch deck
+```
+
+**Contract design.** Beneficiaries are stored as keccak256 commitments of claim secrets with shares in basis points totalling 10,000. Expiry is `lastHeartbeat + interval + grace` judged by block time, so no server or cron is trusted. Activation snapshots balances; `claim(estateId, index, secret)` pays the share of the snapshot to `msg.sender` when the secret matches, binding the heir wallet at claim time (heirs are named by email, so their address cannot be known in advance). Withdraw and cancel work any time before activation, never after. All value paths are reentrancy guarded.
+
+**Privacy.** Nothing personal touches the chain. Names and emails stay in the owner's browser. Onchain: hashes, percentages, timestamps, balances.
+
+**Walletless UX.** Magic embedded wallets on both sides (email OTP, no seed phrase step). The claim page silently tops up the heir wallet with gas through a server route before the accept press, so a first-time user inherits without knowing gas exists.
 
 ## Run locally
 
-Requirements: Node.js 22.13 or newer and pnpm.
-
 ```bash
-pnpm install
-cp .env.example .env
-pnpm dev
+# contracts
+forge install foundry-rs/forge-std
+forge test                          # 20 passing
+
+# app
+cd baton-app
+npm install
+# create .env.local with the values below
+npm run dev                         # http://localhost:3000
 ```
 
-Open the local address printed by the terminal. Runlock defaults to demo mode and requires no API keys.
+`.env.local`:
 
-Verify everything:
-
-```bash
-pnpm test
-pnpm typecheck
-pnpm build
+```
+NEXT_PUBLIC_MAGIC_KEY=pk_live_...   # Magic publishable key (dashboard.magic.link)
+PK=0x...                            # testnet sponsor key for heir gas (server side only)
+RPC=https://sepolia-rollup.arbitrum.io/rpc
 ```
 
-## Demo mode versus live mode
+The owner's Magic wallet needs a little Arbitrum Sepolia ETH for gas. Test mUSDC comes from the in-app faucet button.
 
-Demo mode exercises the complete interface, hashing, policy checks, approval gating and audit flow without contacting KeeperHub or broadcasting transactions. Demo transaction hashes are clearly marked by `mode: "demo"` in receipts and must never be used as hackathon proof.
+## Demo flow (3 minutes in Demo Mode)
 
-For live mode, follow [docs/KEEPERHUB_SETUP.md](docs/KEEPERHUB_SETUP.md). You will need:
+Create estate with Demo Mode on, deposit ETH and mUSDC, press the heartbeat once, copy the claim link, then stop. The countdown dies, the status flips to Ready to pass, and the claim link (opened in incognito with a different email) walks through sign in, sponsored gas, and Accept the Baton, ending with assets in a wallet that did not exist two minutes earlier.
 
-- A KeeperHub organization API key
-- A configured KeeperHub wallet or Safe smart account
-- A KeeperHub monitoring workflow using its Safe and Superfluid plugins
-- Sepolia USDCx and CFA forwarder addresses verified against the current protocol registry
-- A small amount of testnet assets
+## Security model and honest limitations
 
-Live broadcasting remains disabled until `RUNLOCK_LIVE_EXECUTION=true`.
+The owner is protected by layers: full revocability before activation, the grace period, the ability to heartbeat back even after expiry (right up until activation), and an optional guardian who must confirm before claims open. Baton can only ever distribute what was explicitly deposited.
 
-## Repository map
+Prototype limitations, stated plainly: testnet assets only; claim links are bearer secrets (production adds verified beneficiary identity and guardian co-signing); gas sponsorship is an app route (production: account abstraction paymasters); no audit yet; Baton complements a legal will, it does not replace one.
 
-```text
-app/
-  api/                    snapshot, plan, simulation and execution routes
-  dashboard.tsx          interactive command center
-lib/runlock/
-  canonical.ts           canonical JSON and SHA-256 commitments
-  keeperhub.ts           authenticated execution and idempotency adapter
-  math.ts                runway and flow-rate calculations
-  plan.ts                recovery compiler and policy gate
-  types.ts               typed domain contract
-config/
-  policy.example.json    editable policy example
-docs/
-  ARCHITECTURE.md
-  BOUNTY_ISSUE_DRAFT.md
-  DEMO_SCRIPT.md
-  KEEPERHUB_SETUP.md
-tests/
-  runlock.test.ts
-```
+## Roadmap
 
-## Safety model
+Mainnet with audited contracts. Cross-chain estate funding through chain abstraction so one tap gathers assets from every chain into the reserve. Verified beneficiary identity and notifications. Guardian co-signing on claims. Integrations with the legal estate world.
 
-Runlock fails closed:
+---
 
-1. Every action must use an approved chain and contract.
-2. Protected receivers cannot appear in recovery actions.
-3. Single-action value is capped by policy.
-4. The complete snapshot, plan and call payloads are canonicalized and hashed.
-5. Simulation must succeed for the same manifest currently displayed.
-6. Approval must repeat that manifest hash.
-7. The server recomputes the hash immediately before execution.
-8. Each action has a reproducible KeeperHub idempotency key.
-9. The first failed action stops the sequence.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
-
-## KeeperHub integration
-
-Runlock uses documented KeeperHub surfaces:
-
-- `POST /api/workflows/{workflowId}/execute` for the monitoring workflow
-- `GET /api/workflows/executions/{executionId}/wait` for its receipt
-- `POST /api/execute/contract-call` with `simulate: true` for preflight
-- The same contract-call body without `simulate` for execution
-- `Idempotency-Key` derived from the manifest hash and action ID
-
-KeeperHub protocol actions currently do not support dry-run simulation. Runlock therefore compiles Superfluid operations into exact contract calls, allowing the identical body to be simulated and later broadcast through KeeperHub.
-
-## Main track and bounty
-
-This repository is the main-track integration. The separate feature bounty should be submitted from a PR to `KeeperHub/keeperhub`. The proposed contribution is documented in [docs/BOUNTY_ISSUE_DRAFT.md](docs/BOUNTY_ISSUE_DRAFT.md). Open and get the issue accepted before implementing the KeeperHub PR.
-
-## License
-
-MIT
+**Carry it. Protect it. Pass it on.**

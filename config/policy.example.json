@@ -1,0 +1,18 @@
+{
+  "version": "policy-2026-09-11.1",
+  "minimumRunwayDays": 21,
+  "targetRunwayDays": 30,
+  "maximumSingleActionUsd": 100,
+  "maximumStreamReductionPercent": 100,
+  "protectedReceivers": [
+    "0x1111111111111111111111111111111111111111",
+    "0x2222222222222222222222222222222222222222"
+  ],
+  "allowedChainIds": [11155111],
+  "allowedContracts": [
+    "0x30a6933Ca9230361972E413a15dC8114c952414e",
+    "0xcfA132E353cB4E398080B9700609bb008eceB125"
+  ],
+  "requireSimulation": true,
+  "requireHumanApproval": true
+}

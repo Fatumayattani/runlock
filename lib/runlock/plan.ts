@@ -11,6 +11,7 @@ const forwarderAbi = JSON.stringify([
 
 function addresses() {
   return {
+    baseToken: (process.env.RUNLOCK_BASE_TOKEN_ADDRESS ?? DEMO_ADDRESSES.superToken) as `0x${string}`,
     superToken: (process.env.RUNLOCK_SUPER_TOKEN_ADDRESS ?? DEMO_ADDRESSES.superToken) as `0x${string}`,
     forwarder: (process.env.RUNLOCK_CFA_FORWARDER_ADDRESS ?? DEMO_ADDRESSES.cfaForwarder) as `0x${string}`,
   };
@@ -18,9 +19,13 @@ function addresses() {
 
 export function evaluatePolicy(snapshot: TreasurySnapshot, policy: TreasuryPolicy, actions: RecoveryAction[]): PolicyCheck[] {
   const protectedTouched = actions.some((action) => action.receiver && policy.protectedReceivers.map((value) => value.toLowerCase()).includes(action.receiver.toLowerCase()));
+  const actionContract = (action: RecoveryAction) =>
+    action.keeperhub.path === "/execute/transfer"
+      ? action.keeperhub.body.tokenAddress
+      : action.keeperhub.body.contractAddress;
   return [
     { code: "chain-allowlisted", label: "Approved network", passed: policy.allowedChainIds.includes(snapshot.chainId), detail: `${snapshot.chainName} · ${snapshot.chainId}` },
-    { code: "contracts-allowlisted", label: "Contracts allowlisted", passed: actions.every((action) => policy.allowedContracts.map((value) => value.toLowerCase()).includes(action.keeperhub.body.contractAddress.toLowerCase())), detail: "SuperToken and CFA forwarder only" },
+    { code: "contracts-allowlisted", label: "Contracts allowlisted", passed: actions.every((action) => policy.allowedContracts.map((value) => value.toLowerCase()).includes(actionContract(action).toLowerCase())), detail: "Treasury token and Superfluid contracts only" },
     { code: "protected-recipients", label: "Protected streams untouched", passed: !protectedTouched, detail: "Core engineering and operations preserved" },
     { code: "action-limit", label: "Action value within limit", passed: actions.every((action) => action.amountUsd <= policy.maximumSingleActionUsd), detail: `Maximum ${policy.maximumSingleActionUsd} stablecoin per action` },
     { code: "simulation-required", label: "Simulation required", passed: policy.requireSimulation, detail: "Execution remains locked until preflight succeeds" },
@@ -28,8 +33,98 @@ export function evaluatePolicy(snapshot: TreasurySnapshot, policy: TreasuryPolic
   ];
 }
 
+export function policyForSnapshot(
+  snapshot: TreasurySnapshot,
+  basePolicy: TreasuryPolicy,
+): TreasuryPolicy {
+  if (snapshot.source === "demo") return basePolicy;
+
+  const { baseToken, superToken, forwarder } = addresses();
+
+  return {
+    ...basePolicy,
+    version: `${basePolicy.version}.live`,
+    protectedReceivers: snapshot.streams
+      .filter((stream) => stream.protected)
+      .map((stream) => stream.receiver),
+    allowedContracts: [baseToken, superToken, forwarder],
+  };
+}
+
+function createLiveTopUp(
+  snapshot: TreasurySnapshot,
+  policy: TreasuryPolicy,
+): { actions: RecoveryAction[]; projected: number } {
+  const burn = netMonthlyBurn(snapshot);
+  const currentBalance = totalBalance(snapshot);
+
+  if (burn === 0 || runwayDays(snapshot) >= policy.minimumRunwayDays) {
+    return { actions: [], projected: runwayDays(snapshot) };
+  }
+
+  const targetBalance =
+    burn * (policy.targetRunwayDays / 30);
+  const required = Math.max(0, targetBalance - currentBalance);
+  const amount = Math.min(
+    policy.maximumSingleActionUsd,
+    Math.ceil(required * 100) / 100,
+  );
+
+  if (amount <= 0) {
+    return { actions: [], projected: runwayDays(snapshot) };
+  }
+
+  const { baseToken } = addresses();
+  const actions: RecoveryAction[] = [
+    {
+      id: "reserve-top-up",
+      kind: "top-up",
+      title: "Restore treasury runway",
+      description: `Transfer ${amount} reserve tokens into the Safe treasury.`,
+      amountUsd: amount,
+      receiver: snapshot.safeAddress,
+      keeperhub: {
+        path: "/execute/transfer",
+        body: {
+          chainId: snapshot.chainId,
+          recipientAddress: snapshot.safeAddress,
+          tokenAddress: baseToken,
+          amount: String(amount),
+        },
+      },
+    },
+  ];
+
+  return {
+    actions,
+    projected:
+      ((currentBalance + amount) / burn) * 30,
+  };
+}
+
 export function createRecoveryPlan(snapshot: TreasurySnapshot, policy: TreasuryPolicy, now = new Date()): RecoveryManifest {
   const current = runwayDays(snapshot);
+  if (snapshot.source !== "demo") {
+    const { actions, projected } = createLiveTopUp(snapshot, policy);
+    const checks = evaluatePolicy(snapshot, policy, actions);
+    const createdAt = now.toISOString();
+    const unsigned = {
+      schema: "runlock.recovery.v1" as const,
+      planId: `run-${digest({ snapshot, createdAt }).slice(0, 12)}`,
+      createdAt,
+      expiresAt: new Date(now.getTime() + 15 * 60_000).toISOString(),
+      chainId: snapshot.chainId,
+      safeAddress: snapshot.safeAddress,
+      snapshotDigest: digest(snapshot),
+      policyVersion: policy.version,
+      currentRunwayDays: Number(current.toFixed(1)),
+      projectedRunwayDays: Number(projected.toFixed(1)),
+      actions,
+      checks,
+    };
+    return { ...unsigned, manifestHash: digest(unsigned) };
+  }
+
   const { superToken, forwarder } = addresses();
   const discretionaryStreams = snapshot.streams
     .filter((stream) => !stream.protected && stream.status === "active")

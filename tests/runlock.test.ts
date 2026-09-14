@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { canonicalize, digest } from "../lib/runlock/canonical.ts";
 import { defaultPolicy, demoSnapshot } from "../lib/runlock/demo.ts";
 import { monthlyToFlowRate, netMonthlyBurn, runwayDays, totalBalance } from "../lib/runlock/math.ts";
-import { assertExecutable, createRecoveryPlan, evaluatePolicy } from "../lib/runlock/plan.ts";
+import { assertExecutable, createRecoveryPlan, evaluatePolicy, policyForSnapshot } from "../lib/runlock/plan.ts";
 import { runManifest } from "../lib/runlock/keeperhub.ts";
 
 test("canonical JSON is independent of object key order", () => {
@@ -81,20 +81,74 @@ test("demo execution receipts are deterministic for a manifest", async () => {
   assert.equal(first.mode, "demo");
 });
 
-test("recovery plan supports a live treasury without discretionary streams", () => {
+test("live recovery plan tops up the Safe to its runway target", () => {
+  const previousBaseToken = process.env.RUNLOCK_BASE_TOKEN_ADDRESS;
+  process.env.RUNLOCK_BASE_TOKEN_ADDRESS =
+    "0x1000000000000000000000000000000000000002";
   const liveSnapshot = {
     ...demoSnapshot,
-    source: "keeperhub" as const,
-    streams: demoSnapshot.streams.filter((stream) => stream.protected),
+    source: "rpc" as const,
+    liquidBaseToken: 0,
+    superTokenBalance: 0,
+    monthlyInflows: 0,
+    otherMonthlyCosts: 100,
+    streams: demoSnapshot.streams
+      .filter((stream) => stream.protected)
+      .map((stream) => ({
+        ...stream,
+        monthlyAmount: 0,
+        status: "paused" as const,
+      })),
   };
+
+  const policy = policyForSnapshot(liveSnapshot, defaultPolicy);
 
   const plan = createRecoveryPlan(
     liveSnapshot,
-    defaultPolicy,
+    policy,
     new Date("2026-09-14T09:30:00Z"),
   );
 
   assert.equal(plan.actions.length, 1);
-  assert.equal(plan.actions[0].kind, "wrap");
-  assert.equal(plan.projectedRunwayDays, plan.currentRunwayDays);
+  assert.equal(plan.actions[0].kind, "top-up");
+  assert.equal(plan.actions[0].keeperhub.path, "/execute/transfer");
+  assert.equal(plan.actions[0].amountUsd, 100);
+  assert.equal(plan.projectedRunwayDays, 30);
+  assert.equal(plan.checks.every((check) => check.passed), true);
+
+  if (previousBaseToken === undefined) {
+    delete process.env.RUNLOCK_BASE_TOKEN_ADDRESS;
+  } else {
+    process.env.RUNLOCK_BASE_TOKEN_ADDRESS = previousBaseToken;
+  }
+});
+
+test("live treasury at target queues no additional recovery", () => {
+  const liveSnapshot = {
+    ...demoSnapshot,
+    source: "rpc" as const,
+    liquidBaseToken: 100,
+    superTokenBalance: 0,
+    monthlyInflows: 0,
+    otherMonthlyCosts: 100,
+    streams: demoSnapshot.streams
+      .filter((stream) => stream.protected)
+      .map((stream) => ({
+        ...stream,
+        monthlyAmount: 0,
+        status: "paused" as const,
+      })),
+  };
+
+  const policy = policyForSnapshot(liveSnapshot, defaultPolicy);
+  const plan = createRecoveryPlan(
+    liveSnapshot,
+    policy,
+    new Date("2026-09-14T12:20:00Z"),
+  );
+
+  assert.equal(runwayDays(liveSnapshot), 30);
+  assert.equal(plan.actions.length, 0);
+  assert.equal(plan.currentRunwayDays, 30);
+  assert.equal(plan.projectedRunwayDays, 30);
 });

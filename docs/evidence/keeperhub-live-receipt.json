@@ -1,0 +1,19 @@
+{
+  "mode": "live",
+  "manifestHash": "10b0ea1da681f8002642c7a7059487c6427c39bf69ea32362ff7993a3180924a",
+  "status": "completed",
+  "startedAt": "2026-09-14T12:15:11.139Z",
+  "completedAt": "2026-09-14T12:15:38.645Z",
+  "results": [
+    {
+      "actionId": "reserve-top-up",
+      "status": "completed",
+      "executionId": "f52whszt34pmdecl1r09r",
+      "transactionHash": "0x941ac927033ff1e81044d030c4b1d0e26eb9620ac2ab94543f7d58f403d56c42",
+      "transactionLink": "https://sepolia.etherscan.io/tx/0x941ac927033ff1e81044d030c4b1d0e26eb9620ac2ab94543f7d58f403d56c42",
+      "verified": true,
+      "receiptStatus": "success",
+      "blockNumber": 11702833
+    }
+  ]
+}

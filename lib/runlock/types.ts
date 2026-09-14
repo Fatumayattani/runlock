@@ -43,7 +43,7 @@ export type PolicyCheck = {
   detail: string;
 };
 
-export type KeeperHubCall = {
+export type KeeperHubContractCall = {
   path: "/execute/contract-call";
   body: {
     chainId: number;
@@ -54,9 +54,23 @@ export type KeeperHubCall = {
   };
 };
 
+export type KeeperHubTransferCall = {
+  path: "/execute/transfer";
+  body: {
+    chainId: number;
+    recipientAddress: Address;
+    tokenAddress: Address;
+    amount: string;
+  };
+};
+
+export type KeeperHubCall =
+  | KeeperHubContractCall
+  | KeeperHubTransferCall;
+
 export type RecoveryAction = {
   id: string;
-  kind: "wrap" | "update-flow" | "delete-flow";
+  kind: "top-up" | "wrap" | "update-flow" | "delete-flow";
   title: string;
   description: string;
   amountUsd: number;
@@ -85,7 +99,7 @@ export type RecoveryManifest = {
 export type ExecutionReceipt = {
   mode: "demo" | "live";
   manifestHash: string;
-  status: "simulated" | "completed" | "failed";
+  status: "simulated" | "completed" | "unconfirmed" | "failed";
   startedAt: string;
   completedAt: string;
   results: Array<{
@@ -96,6 +110,11 @@ export type ExecutionReceipt = {
     transactionLink?: string;
     gasEstimate?: string;
     wouldRevert?: boolean;
+    from?: string;
+    to?: string;
+    verified?: boolean;
+    receiptStatus?: string;
+    blockNumber?: string;
     error?: string;
   }>;
 };

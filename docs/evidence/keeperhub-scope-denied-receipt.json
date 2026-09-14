@@ -1,0 +1,14 @@
+{
+  "mode": "live",
+  "manifestHash": "10b0ea1da681f8002642c7a7059487c6427c39bf69ea32362ff7993a3180924a",
+  "status": "failed",
+  "startedAt": "2026-09-14T12:08:51.002Z",
+  "completedAt": "2026-09-14T12:08:51.387Z",
+  "results": [
+    {
+      "actionId": "reserve-top-up",
+      "status": "failed",
+      "error": "insufficient_scope"
+    }
+  ]
+}

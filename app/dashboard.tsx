@@ -78,7 +78,7 @@ function MiniMetric({
 }
 
 function ActionGlyph({ kind }: { kind: string }) {
-  const Icon = kind === "wrap" ? WalletCards : kind === "update-flow" ? Waves : Activity;
+  const Icon = kind === "wrap" || kind === "top-up" ? WalletCards : kind === "update-flow" ? Waves : Activity;
   return (
     <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#20231f] text-acid">
       <Icon className="size-3.5" />
@@ -267,8 +267,16 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
   const balance = totalBalance(snapshot);
   const burn = netMonthlyBurn(snapshot);
   const runway = runwayDays(snapshot);
+  const belowFloor = runway < policy.minimumRunwayDays;
+  const hasRecoveryActions = manifest.actions.length > 0;
+  const floorDelta = Math.abs(runway - policy.minimumRunwayDays);
   const burnReduction = manifest.actions.reduce(
     (sum, action) => sum + Math.max(0, (action.previousMonthlyAmount ?? 0) - (action.nextMonthlyAmount ?? 0)),
+    0,
+  );
+  const reserveIncrease = manifest.actions.reduce(
+    (sum, action) =>
+      sum + (action.kind === "top-up" ? action.amountUsd : 0),
     0,
   );
   const protectedCount = snapshot.streams.filter((stream) => stream.protected).length;
@@ -325,7 +333,10 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
               <section className="rl-runway-panel">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <StatePill tone="critical"><TriangleAlert className="size-3.5" /> Action required</StatePill>
+                    <StatePill tone={belowFloor ? "critical" : "safe"}>
+                      {belowFloor ? <TriangleAlert className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
+                      {belowFloor ? "Action required" : "Runway healthy"}
+                    </StatePill>
                     <p className="mt-4 text-xs text-ink-muted">Operational runway</p>
                     <div className="mt-1 flex items-end gap-2">
                       <strong className="text-[58px] font-semibold leading-none tracking-[-0.075em] xl:text-[72px]">{runway.toFixed(1)}</strong>
@@ -333,10 +344,11 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="flex items-center justify-end gap-1 text-sm font-semibold text-[#f1a098]">
-                      <ArrowDownRight className="size-4" /> {(policy.minimumRunwayDays - runway).toFixed(1)}d
+                    <p className={belowFloor ? "flex items-center justify-end gap-1 text-sm font-semibold text-[#f1a098]" : "flex items-center justify-end gap-1 text-sm font-semibold text-acid"}>
+                      {belowFloor ? <ArrowDownRight className="size-4" /> : <CheckCircle2 className="size-4" />}
+                      {belowFloor ? "−" : "+"}{floorDelta.toFixed(1)}d
                     </p>
-                    <p className="mt-1 text-[11px] text-ink-faint">below policy floor</p>
+                    <p className="mt-1 text-[11px] text-ink-faint">{belowFloor ? "below policy floor" : "above policy floor"}</p>
                   </div>
                 </div>
 
@@ -359,8 +371,14 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
               <section className="rl-recovery-panel">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="rl-eyebrow">Locked recovery</p>
-                    <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em]">Restore 30-day runway</h2>
+                    <p className="rl-eyebrow">{hasRecoveryActions ? "Locked recovery" : "Treasury status"}</p>
+                    <h2 className="mt-1.5 text-xl font-semibold tracking-[-0.04em]">
+                      {hasRecoveryActions
+                        ? `Restore ${policy.targetRunwayDays}-day runway`
+                        : belowFloor
+                          ? "Recovery unavailable"
+                          : "Runway target reached"}
+                    </h2>
                   </div>
                   <span className="grid size-9 place-items-center rounded-full bg-acid text-[#0d100c]"><CheckCircle2 className="size-4" /></span>
                 </div>
@@ -371,8 +389,20 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                     <p className="mt-0.5 text-2xl font-semibold tracking-[-0.05em] text-acid">{manifest.projectedRunwayDays} days</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-acid">−{money.format(burnReduction)}</p>
-                    <p className="mt-0.5 text-[11px] text-ink-faint">monthly burn</p>
+                    <p className="text-sm font-semibold text-acid">
+                      {reserveIncrease > 0
+                        ? `+${money.format(reserveIncrease)}`
+                        : burnReduction > 0
+                          ? `−${money.format(burnReduction)}`
+                          : `+${floorDelta.toFixed(1)}d`}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-ink-faint">
+                      {reserveIncrease > 0
+                        ? "reserve top-up"
+                        : burnReduction > 0
+                          ? "monthly burn"
+                          : "above policy floor"}
+                    </p>
                   </div>
                 </div>
 
@@ -392,6 +422,19 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                       </div>
                     </div>
                   ))}
+                  {!hasRecoveryActions && (
+                    <div className="flex items-center gap-3 rounded-xl border border-line bg-[#111410] p-4">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-acid/10 text-acid">
+                        <ShieldCheck className="size-4" />
+                      </span>
+                      <div>
+                        <p className="text-[13px] font-medium">No recovery action queued</p>
+                        <p className="mt-0.5 text-[11px] leading-4 text-ink-faint">
+                          Current runway satisfies the treasury policy.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="rl-manifest-box">
@@ -403,13 +446,13 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                 </div>
 
                 <div className="mt-auto grid grid-cols-2 gap-2">
-                  <Button variant="outline" onClick={simulate} disabled={busy !== null || !allChecksPass} className="h-10 border-line bg-transparent">
-                    {busy === "simulate" ? <LoaderCircle className="animate-spin" /> : <Play />}
-                    {busy === "simulate" ? "Simulating" : "Simulate"}
+                  <Button variant="outline" onClick={simulate} disabled={busy !== null || !allChecksPass || !hasRecoveryActions} className="h-10 border-line bg-transparent">
+                    {busy === "simulate" ? <LoaderCircle className="animate-spin" /> : hasRecoveryActions ? <Play /> : <Check />}
+                    {busy === "simulate" ? "Simulating" : hasRecoveryActions ? "Simulate" : "No action"}
                   </Button>
                   <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button disabled={!simulationPassed || busy !== null} className="h-10 bg-acid text-[#0d100c] hover:bg-[#d5ff71]"><LockKeyhole /> Execute</Button>
+                      <Button disabled={!hasRecoveryActions || !simulationPassed || busy !== null} className="h-10 bg-acid text-[#0d100c] hover:bg-[#d5ff71]"><LockKeyhole /> Execute</Button>
                     </DialogTrigger>
                     <DialogContent className="border-line bg-[#151714] sm:max-w-xl">
                       <DialogHeader>
@@ -426,7 +469,11 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                             <ActionGlyph kind={action.kind} />
                             <div className="min-w-0">
                               <p className="text-sm font-medium">{action.title}</p>
-                              <p className="truncate font-mono text-[10px] text-ink-faint">{action.keeperhub.body.functionName} · {compactAddress(action.keeperhub.body.contractAddress)}</p>
+                              <p className="truncate font-mono text-[10px] text-ink-faint">
+                                {action.keeperhub.path === "/execute/transfer"
+                                  ? `transfer · ${compactAddress(action.keeperhub.body.tokenAddress)}`
+                                  : `${action.keeperhub.body.functionName} · ${compactAddress(action.keeperhub.body.contractAddress)}`}
+                              </p>
                             </div>
                             <Check className="ml-auto size-4 text-acid" />
                           </div>
@@ -442,7 +489,11 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                   </Dialog>
                 </div>
                 <p className="mt-2 text-center text-[10px] text-ink-faint">
-                  {simulationPassed ? "Preflight passed. Exact execution unlocked." : "Execute unlocks after KeeperHub simulation."}
+                  {!hasRecoveryActions
+                    ? "Treasury is healthy. No KeeperHub action is queued."
+                    : simulationPassed
+                      ? "Preflight passed. Exact execution unlocked."
+                      : "Execute unlocks after KeeperHub simulation."}
                 </p>
               </section>
             </div>
@@ -452,7 +503,7 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
             <section className="rl-single-panel">
               <div className="rl-panel-title">
                 <div><p className="rl-eyebrow">Superfluid</p><h2 className="mt-1.5 text-xl font-semibold">Continuous obligations</h2></div>
-                <StatePill tone="safe"><Waves className="size-3" /> {snapshot.streams.length} active</StatePill>
+                <StatePill tone="safe"><Waves className="size-3" /> {snapshot.streams.filter((stream) => stream.status === "active").length} active</StatePill>
               </div>
               <div className="rl-stream-table">
                 <div className="rl-table-head"><span>Recipient</span><span>Monthly outflow</span><span>Protection</span><span>Status</span></div>
@@ -464,7 +515,7 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                     </div>
                     <span className="text-sm font-medium">{money.format(stream.monthlyAmount)} / mo</span>
                     <span className={stream.protected ? "text-xs text-acid" : "text-xs text-ink-muted"}>{stream.protected ? "Protected" : "Adjustable"}</span>
-                    <StatePill tone="safe"><span className="rl-status-dot" /> Active</StatePill>
+                    <StatePill tone={stream.status === "active" ? "safe" : "neutral"}><span className="rl-status-dot" /> {stream.status === "active" ? "Active" : "Paused"}</StatePill>
                   </div>
                 ))}
               </div>
@@ -476,7 +527,7 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
               <section className="rl-single-panel">
                 <div className="rl-panel-title">
                   <div><p className="rl-eyebrow">Policy {policy.version}</p><h2 className="mt-1.5 text-xl font-semibold">Execution gates</h2></div>
-                  <StatePill tone="safe"><CheckCircle2 className="size-3" /> All passed</StatePill>
+                  <StatePill tone={allChecksPass ? "safe" : "critical"}><CheckCircle2 className="size-3" /> {allChecksPass ? "All passed" : "Blocked"}</StatePill>
                 </div>
                 <div className="rl-check-grid">
                   {manifest.checks.map((check) => (

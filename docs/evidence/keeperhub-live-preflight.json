@@ -1,0 +1,17 @@
+{
+  "mode": "live",
+  "manifestHash": "10b0ea1da681f8002642c7a7059487c6427c39bf69ea32362ff7993a3180924a",
+  "status": "simulated",
+  "startedAt": "2026-09-14T12:08:49.171Z",
+  "completedAt": "2026-09-14T12:08:50.655Z",
+  "results": [
+    {
+      "actionId": "reserve-top-up",
+      "status": "simulated",
+      "gasEstimate": "51875",
+      "wouldRevert": false,
+      "from": "0x07e60ae18a26effbb9301c0d2cec0419e5abf09b",
+      "to": "0x4e89088cd14064f38e5b2f309cfab9c864f9a8e6"
+    }
+  ]
+}

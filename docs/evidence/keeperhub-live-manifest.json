@@ -1,0 +1,70 @@
+{
+  "schema": "runlock.recovery.v1",
+  "planId": "run-9beaf6a7714f",
+  "createdAt": "2026-09-14T12:08:49.169Z",
+  "expiresAt": "2026-09-14T12:23:49.169Z",
+  "chainId": 11155111,
+  "safeAddress": "0x9e604f3Aacb910a8dbdBE7B5459fB9074BC0600A",
+  "snapshotDigest": "37956402569cf45f1c83550bfe7957010966aad31aa0f1e9e40f536fd882a49f",
+  "policyVersion": "policy-2026-09-11.1.live",
+  "currentRunwayDays": 0,
+  "projectedRunwayDays": 30,
+  "actions": [
+    {
+      "id": "reserve-top-up",
+      "kind": "top-up",
+      "title": "Restore treasury runway",
+      "description": "Transfer 100 reserve tokens into the Safe treasury.",
+      "amountUsd": 100,
+      "receiver": "0x9e604f3Aacb910a8dbdBE7B5459fB9074BC0600A",
+      "keeperhub": {
+        "path": "/execute/transfer",
+        "body": {
+          "chainId": 11155111,
+          "recipientAddress": "0x9e604f3Aacb910a8dbdBE7B5459fB9074BC0600A",
+          "tokenAddress": "0x4e89088cd14064f38e5b2f309cfab9c864f9a8e6",
+          "amount": "100"
+        }
+      }
+    }
+  ],
+  "checks": [
+    {
+      "code": "chain-allowlisted",
+      "label": "Approved network",
+      "passed": true,
+      "detail": "Sepolia · 11155111"
+    },
+    {
+      "code": "contracts-allowlisted",
+      "label": "Contracts allowlisted",
+      "passed": true,
+      "detail": "Treasury token and Superfluid contracts only"
+    },
+    {
+      "code": "protected-recipients",
+      "label": "Protected streams untouched",
+      "passed": true,
+      "detail": "Core engineering and operations preserved"
+    },
+    {
+      "code": "action-limit",
+      "label": "Action value within limit",
+      "passed": true,
+      "detail": "Maximum 100 stablecoin per action"
+    },
+    {
+      "code": "simulation-required",
+      "label": "Simulation required",
+      "passed": true,
+      "detail": "Execution remains locked until preflight succeeds"
+    },
+    {
+      "code": "human-approval",
+      "label": "Human approval required",
+      "passed": true,
+      "detail": "The agent cannot approve its own plan"
+    }
+  ],
+  "manifestHash": "10b0ea1da681f8002642c7a7059487c6427c39bf69ea32362ff7993a3180924a"
+}

@@ -44,9 +44,9 @@ flowchart TD
 3. If runway falls below policy, Runlock compiles a deterministic recovery manifest.
 4. Policy checks reject unsafe chains, contracts, values or protected recipients.
 5. The complete manifest is canonicalized and committed to a SHA-256 hash.
-6. KeeperHub simulates the exact contract calls contained in that manifest.
+6. KeeperHub simulates the exact actions contained in that manifest.
 7. A human approves the displayed hash.
-8. Runlock recomputes the hash and sends the unchanged calls to KeeperHub.
+8. Runlock recomputes the hash and sends the unchanged execution payloads to KeeperHub.
 9. Transaction receipts and idempotency keys create an auditable execution record.
 
 Nothing is inferred at execution time.
@@ -77,14 +77,14 @@ Runlock does not use KeeperHub as a generic transaction relay. KeeperHub provide
 
 | KeeperHub capability | Runlock usage |
 | --- | --- |
-| Contract-call execution | Executes compiled Safe and Superfluid recovery actions |
-| Simulation | Preflights the same calldata later used for execution |
+| Token transfer execution | Executes the locked reserve-to-Safe recovery top-up |
+| Simulation | Preflights the same execution payload later used for execution |
 | Idempotency | Prevents retries from duplicating completed actions |
 | Retry infrastructure | Handles recoverable failures without regenerating the plan |
 | Audit trail | Connects each manifest action to its execution result |
 | Non-custodial infrastructure | Keeps signing outside the analytical agent |
 
-Runlock uses `POST /api/execute/contract-call` for both preflight and execution. Superfluid operations are compiled into explicit contract calls because the execution payload must remain identical after approval.
+Runlock uses KeeperHub's `POST /api/execute/transfer` route for the verified live recovery. The exact recipient, token, amount and chain are locked into the approved manifest before simulation and execution.
 
 ## Deterministic execution
 
@@ -131,11 +131,11 @@ The first failed action stops the sequence. A partially completed plan can resum
 | KeeperHub execution adapter | Implemented |
 | Simulation and approval gating | Implemented |
 | Per-action idempotency | Implemented |
-| Domain and safety tests | 17 passing |
+| Domain and safety tests | 21 passing |
 | Live Safe integration | Implemented and verified on Ethereum Sepolia |
 | Live Superfluid integration | Implemented for token balances and CFA flow reads |
 | Public deployment | In progress |
-| Verified KeeperHub testnet transaction | Required before submission |
+| Verified KeeperHub testnet transaction | Completed and publicly verifiable |
 
 ### Verified Sepolia treasury
 
@@ -147,6 +147,15 @@ The first failed action stops the sequence. A partially completed plan can resum
 - CFA flow state: read directly from the deployed Superfluid contracts
 
 The activation transaction proves deployment of the Safe account. It is not presented as KeeperHub execution evidence.
+
+### Verified KeeperHub recovery
+
+KeeperHub transferred 100 fDAI from its Sepolia reserve to the Runlock Safe using the locked and simulated recovery manifest.
+
+- [View the successful transaction on Etherscan](https://sepolia.etherscan.io/tx/0x941ac927033ff1e81044d030c4b1d0e26eb9620ac2ab94543f7d58f403d56c42)
+- KeeperHub execution ID: `f52whszt34pmdecl1r09r`
+- Receipt status: `success`
+- [Read the complete verification record](docs/VERIFIED_EXECUTION.md)
 
 Demo receipts are explicitly marked with `mode: "demo"` and must never be presented as hackathon transaction evidence.
 
@@ -290,6 +299,7 @@ config/
 docs/
   ARCHITECTURE.md         System boundaries and execution lifecycle
   KEEPERHUB_SETUP.md      KeeperHub configuration and safeguards
+  VERIFIED_EXECUTION.md   Verified live transaction record
   DEMO_SCRIPT.md          Demonstration flow
   BOUNTY_ISSUE_DRAFT.md   Upstream feature proposal
 
@@ -301,10 +311,10 @@ tests/
 
 Development is organized into four reviewable milestones:
 
-1. Rebuild the Runlock treasury command center.
-2. Connect live Safe and Superfluid treasury data.
-3. Complete deterministic KeeperHub testnet execution.
-4. Harden, deploy and prepare verifiable submission evidence.
+1. Treasury command center — completed.
+2. Live Safe and Superfluid adapters — completed.
+3. Verified KeeperHub execution — completed.
+4. Public deployment, demo recording and submission — in progress.
 
 Each milestone is tracked through a separate GitHub issue and pull request.
 
@@ -314,7 +324,7 @@ Each milestone is tracked through a separate GitHub issue and pull request.
 
 **Runlock: The autonomous survival layer for onchain treasuries**
 
-This repository contains the complete Safe, Superfluid and KeeperHub integration.
+This repository contains live Safe and Superfluid monitoring together with verified KeeperHub recovery execution.
 
 ### KeeperHub feature bounty
 

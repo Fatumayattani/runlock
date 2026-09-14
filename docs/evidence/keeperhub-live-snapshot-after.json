@@ -1,0 +1,26 @@
+{
+  "capturedAt": "2026-09-14T12:15:39.365Z",
+  "source": "rpc",
+  "chainId": 11155111,
+  "chainName": "Sepolia",
+  "safeAddress": "0x9e604f3Aacb910a8dbdBE7B5459fB9074BC0600A",
+  "safe": {
+    "owners": 1,
+    "threshold": 1,
+    "nonce": 0
+  },
+  "liquidBaseToken": 100,
+  "superTokenBalance": 0,
+  "monthlyInflows": 0,
+  "otherMonthlyCosts": 100,
+  "streams": [
+    {
+      "id": "stream-runlock-ops",
+      "label": "Runlock operations",
+      "protected": true,
+      "receiver": "0xAE85496e82a163a25F6531Bd1a7304C8354a76BE",
+      "monthlyAmount": 0,
+      "status": "paused"
+    }
+  ]
+}

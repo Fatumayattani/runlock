@@ -19,7 +19,7 @@ Manual trigger
   -> Safe: Get Owners
   -> Safe: Get Threshold
   -> Safe: Get Nonce
-  -> Web3: Check USDC balance
+  -> Web3: Check stablecoin balance
   -> Superfluid: Get SuperToken Balance
   -> Superfluid: Get Flow (one node per configured receiver)
   -> Code: normalize output into the TreasurySnapshot shape
@@ -33,7 +33,7 @@ The workflow's final output must match:
   "chainName": "Sepolia",
   "safeAddress": "0x...",
   "safe": { "owners": 3, "threshold": 2, "nonce": 47 },
-  "liquidUsdc": 392,
+  "liquidBaseToken": 392,
   "superTokenBalance": 138,
   "monthlyInflows": 100,
   "otherMonthlyCosts": 100,

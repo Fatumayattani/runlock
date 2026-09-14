@@ -4,7 +4,7 @@ export const DAYS_PER_MONTH = 30;
 export const SECONDS_PER_MONTH = 30 * 24 * 60 * 60;
 
 export function totalBalance(snapshot: TreasurySnapshot) {
-  return snapshot.liquidUsdc + snapshot.superTokenBalance;
+  return snapshot.liquidBaseToken + snapshot.superTokenBalance;
 }
 
 export function streamOutflow(streams: Stream[]) {

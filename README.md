@@ -57,15 +57,15 @@ The included scenario models a treasury with only **19.4 days of runway**, below
 
 | Treasury signal | Value |
 | --- | ---: |
-| Liquid operating reserves | 530 USDC and USDCx |
-| Net monthly burn | 820 USDC |
+| Liquid operating reserves | 530 stablecoin and SuperToken |
+| Net monthly burn | 820 stablecoin |
 | Current runway | 19.4 days |
 | Minimum permitted runway | 21 days |
 | Target recovery runway | 30 days |
 
 Core engineering and operations payments are protected by policy. Runlock therefore prepares three bounded actions:
 
-1. Wrap 75 USDC into USDCx to support streaming liquidity.
+1. Wrap 75 stablecoin into SuperToken to support streaming liquidity.
 2. Reduce the non-protected community rewards stream.
 3. Pause the non-critical experimental tooling stream.
 
@@ -131,11 +131,22 @@ The first failed action stops the sequence. A partially completed plan can resum
 | KeeperHub execution adapter | Implemented |
 | Simulation and approval gating | Implemented |
 | Per-action idempotency | Implemented |
-| Domain and safety tests | 13 passing |
-| Live Safe integration | In progress |
-| Live Superfluid integration | In progress |
+| Domain and safety tests | 17 passing |
+| Live Safe integration | Implemented and verified on Ethereum Sepolia |
+| Live Superfluid integration | Implemented for token balances and CFA flow reads |
 | Public deployment | In progress |
 | Verified KeeperHub testnet transaction | Required before submission |
+
+### Verified Sepolia treasury
+
+- Safe account: `0x9e604f3Aacb910a8dbdBE7B5459fB9074BC0600A`
+- Configuration: one owner, threshold one
+- Safe activation transaction: `0xedd0751cdbca4864aed6daddd0f95b9462f0ca0fd16dd12c0e2fd446f7c22d56`
+- Live snapshot source: Ethereum Sepolia RPC
+- Superfluid assets: fDAI and fDAIx
+- CFA flow state: read directly from the deployed Superfluid contracts
+
+The activation transaction proves deployment of the Safe account. It is not presented as KeeperHub execution evidence.
 
 Demo receipts are explicitly marked with `mode: "demo"` and must never be presented as hackathon transaction evidence.
 
@@ -207,18 +218,28 @@ Follow [`docs/KEEPERHUB_SETUP.md`](docs/KEEPERHUB_SETUP.md) before enabling it.
 
 ```env
 RUNLOCK_MODE=live
-RUNLOCK_LIVE_EXECUTION=true
-KEEPERHUB_API_KEY=kh_...
+RUNLOCK_LIVE_EXECUTION=false
+RUNLOCK_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+RUNLOCK_SAFE_ADDRESS=0x9e604f3Aacb910a8dbdBE7B5459fB9074BC0600A
+RUNLOCK_BASE_TOKEN_ADDRESS=0x4e89088cd14064f38e5b2f309cfab9c864f9a8e6
+RUNLOCK_SUPER_TOKEN_ADDRESS=0x9ce2062b085a2268e8d769ffc040f6692315fd2c
+RUNLOCK_CFA_ADDRESS=0x6836F23d6171D74Ef62FcF776655aBcD2bcd62Ef
+RUNLOCK_STREAMS_JSON=[...]
 ```
 
-Live mode requires:
+Live RPC reads require:
+
+- An Ethereum Sepolia RPC endpoint
+- A deployed Safe treasury
+- Verified base-token, SuperToken and CFA contract addresses
+- A JSON list of monitored Superfluid receivers
+
+KeeperHub simulation and execution additionally require:
 
 - A KeeperHub organization API key
 - A configured KeeperHub wallet or Safe smart account
-- Verified testnet contract addresses
-- A configured Safe treasury
-- Superfluid testnet streams
 - Testnet gas and tokens
+- `RUNLOCK_LIVE_EXECUTION=true` only after simulation succeeds
 
 Never commit `.env`.
 

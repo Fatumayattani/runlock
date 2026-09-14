@@ -80,3 +80,21 @@ test("demo execution receipts are deterministic for a manifest", async () => {
   assert.equal(first.results[0].transactionHash, second.results[0].transactionHash);
   assert.equal(first.mode, "demo");
 });
+
+test("recovery plan supports a live treasury without discretionary streams", () => {
+  const liveSnapshot = {
+    ...demoSnapshot,
+    source: "keeperhub" as const,
+    streams: demoSnapshot.streams.filter((stream) => stream.protected),
+  };
+
+  const plan = createRecoveryPlan(
+    liveSnapshot,
+    defaultPolicy,
+    new Date("2026-09-14T09:30:00Z"),
+  );
+
+  assert.equal(plan.actions.length, 1);
+  assert.equal(plan.actions[0].kind, "wrap");
+  assert.equal(plan.projectedRunwayDays, plan.currentRunwayDays);
+});

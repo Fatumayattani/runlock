@@ -350,7 +350,7 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                 </div>
 
                 <div className="rl-metrics-grid">
-                  <MiniMetric label="Available" value={money.format(balance)} detail={money.format(snapshot.superTokenBalance) + " USDCx"} />
+                  <MiniMetric label="Available" value={money.format(balance)} detail={money.format(snapshot.superTokenBalance) + " SuperToken"} />
                   <MiniMetric label="Monthly burn" value={money.format(burn)} detail={money.format(streamOutflow(snapshot.streams)) + " streamed"} />
                   <MiniMetric label="Protected" value={protectedCount + "/" + snapshot.streams.length} detail="Core obligations" />
                 </div>

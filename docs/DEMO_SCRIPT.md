@@ -10,7 +10,7 @@ Open **Streams**. Core engineering and operations are protected. Community rewar
 
 ## 0:45 — The control
 
-Open **Policy checks**. Point out the allowlisted chain and contracts, the 100 USDC action ceiling, protected recipients, mandatory simulation and human approval.
+Open **Policy checks**. Point out the allowlisted chain and contracts, the 100 stablecoin action ceiling, protected recipients, mandatory simulation and human approval.
 
 ## 1:05 — The dry run
 

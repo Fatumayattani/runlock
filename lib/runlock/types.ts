@@ -11,12 +11,12 @@ export type Stream = {
 
 export type TreasurySnapshot = {
   capturedAt: string;
-  source: "demo" | "keeperhub";
+  source: "demo" | "rpc" | "keeperhub";
   chainId: number;
   chainName: string;
   safeAddress: Address;
   safe: { owners: number; threshold: number; nonce: number };
-  liquidUsdc: number;
+  liquidBaseToken: number;
   superTokenBalance: number;
   monthlyInflows: number;
   otherMonthlyCosts: number;

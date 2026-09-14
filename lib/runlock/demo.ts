@@ -2,7 +2,7 @@ import type { Address, TreasuryPolicy, TreasurySnapshot } from "./types.ts";
 
 export const DEMO_ADDRESSES = {
   safe: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F" as Address,
-  usdcx: "0x30a6933Ca9230361972E413a15dC8114c952414e" as Address,
+  superToken: "0x30a6933Ca9230361972E413a15dC8114c952414e" as Address,
   cfaForwarder: "0xcfA132E353cB4E398080B9700609bb008eceB125" as Address,
   coreEngineer: "0x1111111111111111111111111111111111111111" as Address,
   operations: "0x2222222222222222222222222222222222222222" as Address,
@@ -17,7 +17,7 @@ export const demoSnapshot: TreasurySnapshot = {
   chainName: "Sepolia",
   safeAddress: DEMO_ADDRESSES.safe,
   safe: { owners: 3, threshold: 2, nonce: 47 },
-  liquidUsdc: 392,
+  liquidBaseToken: 392,
   superTokenBalance: 138,
   monthlyInflows: 100,
   otherMonthlyCosts: 100,
@@ -37,7 +37,7 @@ export const defaultPolicy: TreasuryPolicy = {
   maximumStreamReductionPercent: 100,
   protectedReceivers: [DEMO_ADDRESSES.coreEngineer, DEMO_ADDRESSES.operations],
   allowedChainIds: [11155111],
-  allowedContracts: [DEMO_ADDRESSES.usdcx, DEMO_ADDRESSES.cfaForwarder],
+  allowedContracts: [DEMO_ADDRESSES.superToken, DEMO_ADDRESSES.cfaForwarder],
   requireSimulation: true,
   requireHumanApproval: true,
 };

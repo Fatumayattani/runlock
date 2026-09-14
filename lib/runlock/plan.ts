@@ -11,7 +11,7 @@ const forwarderAbi = JSON.stringify([
 
 function addresses() {
   return {
-    usdcx: (process.env.RUNLOCK_USDCX_ADDRESS ?? DEMO_ADDRESSES.usdcx) as `0x${string}`,
+    superToken: (process.env.RUNLOCK_SUPER_TOKEN_ADDRESS ?? DEMO_ADDRESSES.superToken) as `0x${string}`,
     forwarder: (process.env.RUNLOCK_CFA_FORWARDER_ADDRESS ?? DEMO_ADDRESSES.cfaForwarder) as `0x${string}`,
   };
 }
@@ -20,9 +20,9 @@ export function evaluatePolicy(snapshot: TreasurySnapshot, policy: TreasuryPolic
   const protectedTouched = actions.some((action) => action.receiver && policy.protectedReceivers.map((value) => value.toLowerCase()).includes(action.receiver.toLowerCase()));
   return [
     { code: "chain-allowlisted", label: "Approved network", passed: policy.allowedChainIds.includes(snapshot.chainId), detail: `${snapshot.chainName} · ${snapshot.chainId}` },
-    { code: "contracts-allowlisted", label: "Contracts allowlisted", passed: actions.every((action) => policy.allowedContracts.map((value) => value.toLowerCase()).includes(action.keeperhub.body.contractAddress.toLowerCase())), detail: "USDCx and CFA forwarder only" },
+    { code: "contracts-allowlisted", label: "Contracts allowlisted", passed: actions.every((action) => policy.allowedContracts.map((value) => value.toLowerCase()).includes(action.keeperhub.body.contractAddress.toLowerCase())), detail: "SuperToken and CFA forwarder only" },
     { code: "protected-recipients", label: "Protected streams untouched", passed: !protectedTouched, detail: "Core engineering and operations preserved" },
-    { code: "action-limit", label: "Action value within limit", passed: actions.every((action) => action.amountUsd <= policy.maximumSingleActionUsd), detail: `Maximum ${policy.maximumSingleActionUsd} USDC per action` },
+    { code: "action-limit", label: "Action value within limit", passed: actions.every((action) => action.amountUsd <= policy.maximumSingleActionUsd), detail: `Maximum ${policy.maximumSingleActionUsd} stablecoin per action` },
     { code: "simulation-required", label: "Simulation required", passed: policy.requireSimulation, detail: "Execution remains locked until preflight succeeds" },
     { code: "human-approval", label: "Human approval required", passed: policy.requireHumanApproval, detail: "The agent cannot approve its own plan" },
   ];
@@ -30,46 +30,113 @@ export function evaluatePolicy(snapshot: TreasurySnapshot, policy: TreasuryPolic
 
 export function createRecoveryPlan(snapshot: TreasurySnapshot, policy: TreasuryPolicy, now = new Date()): RecoveryManifest {
   const current = runwayDays(snapshot);
-  const { usdcx, forwarder } = addresses();
-  const community = snapshot.streams.find((stream) => stream.id === "stream-community");
-  const tooling = snapshot.streams.find((stream) => stream.id === "stream-tooling");
-  if (!community || !tooling) throw new Error("Required discretionary streams were not found");
+  const { superToken, forwarder } = addresses();
+  const discretionaryStreams = snapshot.streams
+    .filter((stream) => !stream.protected && stream.status === "active")
+    .sort((left, right) => right.monthlyAmount - left.monthlyAmount);
+
+  const community =
+    discretionaryStreams.find((stream) => stream.id === "stream-community") ??
+    discretionaryStreams[0];
+
+  const tooling =
+    discretionaryStreams.find((stream) => stream.id === "stream-tooling") ??
+    discretionaryStreams.find((stream) => stream.id !== community?.id);
 
   const actions: RecoveryAction[] = [
     {
       id: "wrap-buffer",
       kind: "wrap",
       title: "Extend the stream buffer",
-      description: "Wrap 75 USDC into USDCx so protected streams keep settling.",
+      description: "Wrap 75 stable tokens into Super Tokens so protected streams keep settling.",
       amountUsd: 75,
-      keeperhub: { path: "/execute/contract-call", body: { chainId: snapshot.chainId, contractAddress: usdcx, functionName: "upgrade", functionArgs: JSON.stringify([(BigInt(75) * BigInt("1000000000000000000")).toString()]), abi: superTokenAbi } },
+      keeperhub: {
+        path: "/execute/contract-call",
+        body: {
+          chainId: snapshot.chainId,
+          contractAddress: superToken,
+          functionName: "upgrade",
+          functionArgs: JSON.stringify([
+            (BigInt(75) * BigInt("1000000000000000000")).toString(),
+          ]),
+          abi: superTokenAbi,
+        },
+      },
     },
-    {
-      id: "reduce-community",
+  ];
+
+  let communityReduction = 0;
+  let toolingReduction = 0;
+
+  if (community) {
+    const nextMonthlyAmount = Math.min(10, community.monthlyAmount);
+    communityReduction = community.monthlyAmount - nextMonthlyAmount;
+
+    actions.push({
+      id: `reduce-${community.id}`,
       kind: "update-flow",
-      title: "Throttle community rewards",
-      description: "Reduce the discretionary stream from 210 to 10 USDC per month.",
+      title: `Throttle ${community.label}`,
+      description: `Reduce the discretionary stream from ${community.monthlyAmount} to ${nextMonthlyAmount} per month.`,
       amountUsd: 0,
       receiver: community.receiver,
       previousMonthlyAmount: community.monthlyAmount,
-      nextMonthlyAmount: 10,
-      keeperhub: { path: "/execute/contract-call", body: { chainId: snapshot.chainId, contractAddress: forwarder, functionName: "updateFlow", functionArgs: JSON.stringify([usdcx, community.receiver, monthlyToFlowRate(10), "0x"]), abi: forwarderAbi } },
-    },
-    {
-      id: "pause-tooling",
+      nextMonthlyAmount,
+      keeperhub: {
+        path: "/execute/contract-call",
+        body: {
+          chainId: snapshot.chainId,
+          contractAddress: forwarder,
+          functionName: "updateFlow",
+          functionArgs: JSON.stringify([
+            superToken,
+            community.receiver,
+            monthlyToFlowRate(nextMonthlyAmount),
+            "0x",
+          ]),
+          abi: forwarderAbi,
+        },
+      },
+    });
+  }
+
+  if (tooling) {
+    toolingReduction = tooling.monthlyAmount;
+
+    actions.push({
+      id: `pause-${tooling.id}`,
       kind: "delete-flow",
-      title: "Pause experimental tooling",
-      description: "Stop the non-critical tooling stream until runway recovers.",
+      title: `Pause ${tooling.label}`,
+      description: "Stop this non-critical stream until treasury runway recovers.",
       amountUsd: 0,
       receiver: tooling.receiver,
       previousMonthlyAmount: tooling.monthlyAmount,
       nextMonthlyAmount: 0,
-      keeperhub: { path: "/execute/contract-call", body: { chainId: snapshot.chainId, contractAddress: forwarder, functionName: "deleteFlow", functionArgs: JSON.stringify([usdcx, snapshot.safeAddress, tooling.receiver, "0x"]), abi: forwarderAbi } },
-    },
-  ];
+      keeperhub: {
+        path: "/execute/contract-call",
+        body: {
+          chainId: snapshot.chainId,
+          contractAddress: forwarder,
+          functionName: "deleteFlow",
+          functionArgs: JSON.stringify([
+            superToken,
+            snapshot.safeAddress,
+            tooling.receiver,
+            "0x",
+          ]),
+          abi: forwarderAbi,
+        },
+      },
+    });
+  }
 
-  const projectedBurn = netMonthlyBurn(snapshot) - (community.monthlyAmount - 10) - tooling.monthlyAmount;
-  const projected = (totalBalance(snapshot) / projectedBurn) * 30;
+  const projectedBurn = Math.max(
+    0,
+    netMonthlyBurn(snapshot) - communityReduction - toolingReduction,
+  );
+  const projected =
+    projectedBurn === 0
+      ? current
+      : (totalBalance(snapshot) / projectedBurn) * 30;
   const checks = evaluatePolicy(snapshot, policy, actions);
   const createdAt = now.toISOString();
   const unsigned = {

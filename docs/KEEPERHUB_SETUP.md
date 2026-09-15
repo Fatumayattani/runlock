@@ -1,64 +1,78 @@
 # KeeperHub setup
 
-## 1. Create an organization API key
+Runlock has two deliberately separate operating modes.
 
-Create a `kh_` key in KeeperHub. A read-scoped key is sufficient for simulation. Broadcasting requires `mcp:write` or `mcp:admin`. Never expose the key through a `NEXT_PUBLIC_` variable.
+## Public demo mode
 
-## 2. Connect a wallet
+Set `RUNLOCK_MODE=demo` or leave it unset.
 
-Configure the organization wallet in KeeperHub. For the intended demo, link the wallet or Safe smart account that controls the Sepolia Superfluid streams. Confirm its address before continuing.
+Demo mode requires no credentials and never broadcasts transactions.
+It demonstrates planning, hashing, simulation and approval safely.
 
-## 3. Build the monitoring workflow
+The public deployment runs in this mode:
 
-Use KeeperHub MCP or the visual builder. Discover the authoritative current action schemas with `list_action_schemas` or `search_protocol_actions`; do not guess fields from this document.
+- https://runlock.fyattani.workers.dev
 
-Suggested workflow:
+The Keeper runs view also displays the separately verified live receipt.
 
-```text
-Manual trigger
-  -> Safe: Get Owners
-  -> Safe: Get Threshold
-  -> Safe: Get Nonce
-  -> Web3: Check stablecoin balance
-  -> Superfluid: Get SuperToken Balance
-  -> Superfluid: Get Flow (one node per configured receiver)
-  -> Code: normalize output into the TreasurySnapshot shape
+## Live treasury monitoring
+
+Set `RUNLOCK_MODE=live` and configure:
+
+- `RUNLOCK_RPC_URL`
+- `RUNLOCK_SAFE_ADDRESS`
+- `RUNLOCK_BASE_TOKEN_ADDRESS`
+- `RUNLOCK_BASE_TOKEN_DECIMALS`
+- `RUNLOCK_SUPER_TOKEN_ADDRESS`
+- `RUNLOCK_SUPER_TOKEN_DECIMALS`
+- `RUNLOCK_CFA_ADDRESS`
+- `RUNLOCK_STREAMS_JSON`
+- `RUNLOCK_MONTHLY_INFLOWS`
+- `RUNLOCK_OTHER_MONTHLY_COSTS`
+
+Runlock reads the Safe configuration and token balances from Sepolia RPC.
+It also reads each configured Superfluid CFA flow directly onchain.
+
+## KeeperHub execution
+
+Configure these server-side values:
+
+- `KEEPERHUB_API_URL=https://app.keeperhub.com/api`
+- `KEEPERHUB_API_KEY`
+- `RUNLOCK_RESERVE_ADDRESS`
+
+Use a KeeperHub key with the minimum required read and write scopes.
+Never expose that key in browser code, logs, evidence or Git.
+
+Keep this switch disabled during normal development:
+
+```env
+RUNLOCK_LIVE_EXECUTION=false
 ```
 
-The workflow's final output must match:
+## Controlled execution procedure
 
-```json
-{
-  "chainId": 11155111,
-  "chainName": "Sepolia",
-  "safeAddress": "0x...",
-  "safe": { "owners": 3, "threshold": 2, "nonce": 47 },
-  "liquidBaseToken": 392,
-  "superTokenBalance": 138,
-  "monthlyInflows": 100,
-  "otherMonthlyCosts": 100,
-  "streams": [
-    { "id": "stream-core", "receiver": "0x...", "label": "Core engineering", "monthlyAmount": 340, "protected": true, "status": "active" }
-  ]
-}
-```
+1. Read a fresh live treasury snapshot.
+2. Review the generated recovery manifest and policy checks.
+3. Simulate the locked action through KeeperHub.
+4. Confirm that simulation succeeded without a revert.
+5. Match human approval to the exact manifest hash.
+6. Enable live execution only for the controlled process.
+7. Broadcast the unchanged action with its idempotency key.
+8. Poll for completion and verify the successful onchain receipt.
+9. Read a fresh RPC snapshot to confirm the resulting treasury state.
+10. Return `RUNLOCK_LIVE_EXECUTION` to `false`.
 
-Save its ID as `KEEPERHUB_MONITOR_WORKFLOW_ID`.
+Do not enable live execution for unverified stream-mutation actions.
+The verified Runlock execution covers a reserve-to-Safe token transfer.
 
-## 4. Configure and preflight
+## Verified evidence
 
-Copy `.env.example` to `.env`, add the API key and workflow ID, keep `RUNLOCK_LIVE_EXECUTION=false`, and set `RUNLOCK_MODE=live`. Refresh state in Runlock and use **Simulate exact plan**.
+The successful Sepolia execution transferred 100 fDAI to the Runlock Safe.
 
-KeeperHub direct protocol actions do not currently dry-run. Runlock therefore compiles Superfluid operations to `/api/execute/contract-call`, the documented KeeperHub surface that supports `simulate: true`.
+- Execution ID: `f52whszt34pmdecl1r09r`
+- Transaction: `0x941ac927033ff1e81044d030c4b1d0e26eb9620ac2ab94543f7d58f403d56c42`
+- Receipt status: `success`
+- Receipt verification: `verified: true`
 
-## 5. Broadcast once
-
-Only after every simulation succeeds:
-
-1. Verify the displayed manifest fingerprint.
-2. Set `RUNLOCK_LIVE_EXECUTION=true`.
-3. Restart the application.
-4. Simulate once more.
-5. Approve and execute.
-
-Capture the returned transaction link and KeeperHub execution evidence for the hackathon submission.
+See [`VERIFIED_EXECUTION.md`](VERIFIED_EXECUTION.md) for the full record.

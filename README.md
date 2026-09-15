@@ -11,6 +11,10 @@ An agent can recommend what should happen. It should not reinterpret that recomm
 
 > Built for the KeeperHub Integrations Hackathon: KeeperHub is the execution layer, Safe is the treasury, and Superfluid streams are the recurring obligations Runlock protects and manages.
 
+**[Open the public Runlock application](https://runlock.fyattani.workers.dev)**
+
+The public deployment uses a safe interactive demo scenario and contains no execution credentials. Its Keeper runs view includes the separately verified live Sepolia recovery transaction.
+
 ## The problem
 
 Onchain treasuries can hold assets and still fail operationally.
@@ -131,10 +135,10 @@ The first failed action stops the sequence. A partially completed plan can resum
 | KeeperHub execution adapter | Implemented |
 | Simulation and approval gating | Implemented |
 | Per-action idempotency | Implemented |
-| Domain and safety tests | 21 passing |
+| Domain and safety tests | 24 passing |
 | Live Safe integration | Implemented and verified on Ethereum Sepolia |
 | Live Superfluid integration | Implemented for token balances and CFA flow reads |
-| Public deployment | In progress |
+| Public deployment | [Live on Cloudflare Workers](https://runlock.fyattani.workers.dev) |
 | Verified KeeperHub testnet transaction | Completed and publicly verifiable |
 
 ### Verified Sepolia treasury
@@ -314,7 +318,7 @@ Development is organized into four reviewable milestones:
 1. Treasury command center — completed.
 2. Live Safe and Superfluid adapters — completed.
 3. Verified KeeperHub execution — completed.
-4. Public deployment, demo recording and submission — in progress.
+4. Public deployment — completed; demo recording and submission — in progress.
 
 Each milestone is tracked through a separate GitHub issue and pull request.
 

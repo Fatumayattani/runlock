@@ -114,7 +114,7 @@ export type ExecutionReceipt = {
     to?: string;
     verified?: boolean;
     receiptStatus?: string;
-    blockNumber?: string;
+    blockNumber?: string | number;
     error?: string;
   }>;
 };

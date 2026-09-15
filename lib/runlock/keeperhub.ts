@@ -3,7 +3,6 @@ import { assertExecutable } from "./plan.ts";
 import type {
   ExecutionReceipt,
   RecoveryManifest,
-  TreasurySnapshot,
 } from "./types.ts";
 
 const baseUrl = (
@@ -25,8 +24,6 @@ function config() {
         : ("demo" as const),
     apiKey: process.env.KEEPERHUB_API_KEY,
     reserveAddress: process.env.RUNLOCK_RESERVE_ADDRESS,
-    monitorWorkflowId:
-      process.env.KEEPERHUB_MONITOR_WORKFLOW_ID,
     liveExecution:
       process.env.RUNLOCK_LIVE_EXECUTION === "true",
   };
@@ -35,7 +32,7 @@ function config() {
 type KeeperHubReceipt = {
   verified?: boolean;
   receiptStatus?: string;
-  blockNumber?: string;
+  blockNumber?: string | number;
 };
 
 type KeeperHubResponse = Record<string, unknown> & {
@@ -110,49 +107,6 @@ function assertHttpSuccess(result: KeeperHubHttpResult) {
   return result.body;
 }
 
-export async function readKeeperHubSnapshot(): Promise<TreasurySnapshot> {
-  const { monitorWorkflowId } = config();
-  if (!monitorWorkflowId) {
-    throw new Error(
-      "KEEPERHUB_MONITOR_WORKFLOW_ID is required in live mode",
-    );
-  }
-
-  const started = assertHttpSuccess(
-    await request(`/workflows/${monitorWorkflowId}/execute`, {
-      method: "POST",
-      body: JSON.stringify({ type: "manual" }),
-    }),
-  );
-  const executionId = started.executionId ?? started.id;
-  if (!executionId) {
-    throw new Error(
-      "KeeperHub did not return an execution ID",
-    );
-  }
-
-  const receipt = assertHttpSuccess(
-    await request(
-      `/workflows/executions/${executionId}/wait?timeoutMs=30000`,
-    ),
-  );
-  if (!receipt.completed || receipt.status !== "success") {
-    throw new Error(
-      receipt.error ?? "Snapshot workflow did not complete",
-    );
-  }
-  if (!receipt.output || typeof receipt.output !== "object") {
-    throw new Error(
-      "Snapshot workflow returned an invalid output shape",
-    );
-  }
-
-  return {
-    ...(receipt.output as TreasurySnapshot),
-    source: "keeperhub",
-    capturedAt: new Date().toISOString(),
-  };
-}
 
 function demoResult(
   manifest: RecoveryManifest,

@@ -4,6 +4,7 @@ import verifiedReceipt from "../docs/evidence/keeperhub-live-receipt.json" with 
 import {
   auditReceiptKey,
   mergeAuditReceipts,
+  verifiedTransactionLink,
 } from "../lib/runlock/audit.ts";
 import type { ExecutionReceipt } from "../lib/runlock/types";
 
@@ -42,4 +43,18 @@ test("a distinct simulation remains in the audit trail", () => {
     mergeAuditReceipts([simulation], [verified]).length,
     2,
   );
+});
+
+test("verified live receipts expose their transaction link", () => {
+  assert.equal(
+    verifiedTransactionLink(verified),
+    verified.results[0].transactionLink,
+  );
+});
+
+test("demo receipts never expose transaction links", () => {
+  const demo = structuredClone(verified);
+  demo.mode = "demo";
+
+  assert.equal(verifiedTransactionLink(demo), undefined);
 });

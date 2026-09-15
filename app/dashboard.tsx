@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
   DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { mergeAuditReceipts } from "@/lib/runlock/audit";
 import {
   netMonthlyBurn, runwayDays, streamOutflow, totalBalance,
 } from "@/lib/runlock/math";
@@ -23,6 +24,7 @@ import type {
 type Props = {
   initialSnapshot: TreasurySnapshot;
   initialManifest: RecoveryManifest;
+  verifiedExecutions: ExecutionReceipt[];
   policy: TreasuryPolicy;
 };
 
@@ -36,6 +38,9 @@ const money = new Intl.NumberFormat("en-US", {
 
 const compactAddress = (value: string) =>
   value.slice(0, 6) + "…" + value.slice(-4);
+
+const transactionLink = (receipt: ExecutionReceipt) =>
+  receipt.results.find((result) => result.transactionLink)?.transactionLink;
 
 function Wordmark() {
   return (
@@ -125,12 +130,12 @@ function Sidebar({
   );
 }
 
-export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
+export function Dashboard({ initialSnapshot, initialManifest, verifiedExecutions, policy }: Props) {
   const [view, setView] = useState<View>("overview");
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [manifest, setManifest] = useState(initialManifest);
   const [receipt, setReceipt] = useState<ExecutionReceipt | null>(null);
-  const [audit, setAudit] = useState<ExecutionReceipt[]>([]);
+  const [audit, setAudit] = useState<ExecutionReceipt[]>(verifiedExecutions);
   const [busy, setBusy] = useState<"refresh" | "simulate" | "execute" | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -139,18 +144,19 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
     if (!stored) return;
     const timer = window.setTimeout(() => {
       try {
-        setAudit(JSON.parse(stored));
+        const local = JSON.parse(stored) as ExecutionReceipt[];
+        setAudit(mergeAuditReceipts(verifiedExecutions, local));
       } catch {
         window.localStorage.removeItem("runlock-audit-v1");
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [verifiedExecutions]);
 
   const record = (next: ExecutionReceipt) => {
     setReceipt(next);
     setAudit((current) => {
-      const updated = [next, ...current].slice(0, 20);
+      const updated = mergeAuditReceipts([next], current).slice(0, 20);
       window.localStorage.setItem("runlock-audit-v1", JSON.stringify(updated));
       return updated;
     });
@@ -556,7 +562,7 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
             <section className="rl-single-panel">
               <div className="rl-panel-title">
                 <div><p className="rl-eyebrow">Audit trail</p><h2 className="mt-1.5 text-xl font-semibold">KeeperHub runs</h2></div>
-                <StatePill><Clock3 className="size-3" /> Local evidence</StatePill>
+                <StatePill><Clock3 className="size-3" /> Verified + local</StatePill>
               </div>
               {audit.length === 0 ? (
                 <div className="rl-empty-state">
@@ -570,9 +576,9 @@ export function Dashboard({ initialSnapshot, initialManifest, policy }: Props) {
                   {audit.map((item, index) => (
                     <div key={item.completedAt + "-" + index} className="rl-activity-row">
                       <span className="grid size-9 place-items-center rounded-full bg-acid/10 text-acid">{item.status === "simulated" ? <Play className="size-4" /> : <CheckCircle2 className="size-4" />}</span>
-                      <div className="min-w-0 flex-1"><p className="text-sm font-medium">{item.status === "simulated" ? "Preflight simulation" : "Recovery execution"}</p><p className="truncate font-mono text-[10px] text-ink-faint">{item.manifestHash}</p></div>
-                      <StatePill tone={item.status === "failed" ? "critical" : "safe"}>{item.status}</StatePill>
-                      <time className="w-24 text-right text-xs text-ink-faint">{new Date(item.completedAt).toLocaleTimeString()}</time>
+                      <div className="min-w-0 flex-1"><p className="text-sm font-medium">{item.status === "simulated" ? "Preflight simulation" : item.mode === "live" ? "Verified live recovery" : "Demo recovery execution"}</p><p className="truncate font-mono text-[10px] text-ink-faint">{item.manifestHash}</p>{transactionLink(item) && <a href={transactionLink(item)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-acid hover:underline">View transaction</a>}</div>
+                      <StatePill tone={item.status === "failed" || item.status === "unconfirmed" ? "critical" : "safe"}>{item.status}</StatePill>
+                      <time className="w-36 text-right text-xs text-ink-faint">{new Date(item.completedAt).toLocaleString()}</time>
                     </div>
                   ))}
                 </div>

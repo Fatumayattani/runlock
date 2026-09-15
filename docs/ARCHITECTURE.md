@@ -34,4 +34,4 @@ flowchart LR
 
 ## Current integration surface
 
-The monitor uses a KeeperHub workflow because Safe support is read-only and Superfluid provides both read and write actions. Recovery uses KeeperHub's direct contract-call endpoint because it supports an exact EVM dry run before broadcast. The generated manifest contains the complete chain ID, contract address, ABI, function and arguments KeeperHub will receive.
+Live monitoring reads Safe configuration, token balances and configured Superfluid CFA flow state directly from Ethereum Sepolia RPC. KeeperHub is the execution boundary, not the monitoring source. The verified recovery used KeeperHub's `/api/execute/transfer` endpoint with the chain, reserve, token, recipient and amount locked into the approved manifest. Runlock can compile deterministic Superfluid adjustment actions for planning and demo coverage, but this repository does not claim a verified live Superfluid stream mutation.

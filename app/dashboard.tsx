@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
   DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { mergeAuditReceipts } from "@/lib/runlock/audit";
+import { mergeAuditReceipts, verifiedTransactionLink } from "@/lib/runlock/audit";
 import {
   netMonthlyBurn, runwayDays, streamOutflow, totalBalance,
 } from "@/lib/runlock/math";
@@ -38,9 +38,6 @@ const money = new Intl.NumberFormat("en-US", {
 
 const compactAddress = (value: string) =>
   value.slice(0, 6) + "…" + value.slice(-4);
-
-const transactionLink = (receipt: ExecutionReceipt) =>
-  receipt.results.find((result) => result.transactionLink)?.transactionLink;
 
 function Wordmark() {
   return (
@@ -313,9 +310,9 @@ export function Dashboard({ initialSnapshot, initialManifest, verifiedExecutions
           </div>
           <div className="flex items-center gap-2">
             <StatePill tone={snapshot.source === "demo" ? "neutral" : "safe"}>
-              <span className="rl-status-dot" /> {snapshot.chainName} · {snapshot.source === "demo" ? "Demo" : "Live"}
+              <span className="rl-status-dot" /> {snapshot.source === "demo" ? "Demo treasury" : `${snapshot.chainName} · Live`}
             </StatePill>
-            <span className="hidden rounded-lg border border-line bg-panel px-3 py-2 font-mono text-[11px] text-ink-faint sm:block">{compactAddress(snapshot.safeAddress)}</span>
+            {snapshot.source !== "demo" && <span className="hidden rounded-lg border border-line bg-panel px-3 py-2 font-mono text-[11px] text-ink-faint sm:block">{compactAddress(snapshot.safeAddress)}</span>}
             <Button variant="outline" size="icon" onClick={refresh} disabled={busy !== null} className="rl-topbar-button" aria-label="Refresh treasury">
               <RefreshCw className={busy === "refresh" ? "animate-spin" : ""} />
             </Button>
@@ -576,7 +573,7 @@ export function Dashboard({ initialSnapshot, initialManifest, verifiedExecutions
                   {audit.map((item, index) => (
                     <div key={item.completedAt + "-" + index} className="rl-activity-row">
                       <span className="grid size-9 place-items-center rounded-full bg-acid/10 text-acid">{item.status === "simulated" ? <Play className="size-4" /> : <CheckCircle2 className="size-4" />}</span>
-                      <div className="min-w-0 flex-1"><p className="text-sm font-medium">{item.status === "simulated" ? "Preflight simulation" : item.mode === "live" ? "Verified live recovery" : "Demo recovery execution"}</p><p className="truncate font-mono text-[10px] text-ink-faint">{item.manifestHash}</p>{transactionLink(item) && <a href={transactionLink(item)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-acid hover:underline">View transaction</a>}</div>
+                      <div className="min-w-0 flex-1"><p className="text-sm font-medium">{item.status === "simulated" ? "Preflight simulation" : item.mode === "live" ? "Verified live recovery" : "Demo recovery execution"}</p><p className="truncate font-mono text-[10px] text-ink-faint">{item.manifestHash}</p>{verifiedTransactionLink(item) && <a href={verifiedTransactionLink(item)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-acid hover:underline">View transaction</a>}</div>
                       <StatePill tone={item.status === "failed" || item.status === "unconfirmed" ? "critical" : "safe"}>{item.status}</StatePill>
                       <time className="w-36 text-right text-xs text-ink-faint">{new Date(item.completedAt).toLocaleString()}</time>
                     </div>

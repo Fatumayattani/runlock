@@ -19,6 +19,19 @@ export function auditReceiptKey(
   );
 }
 
+export function verifiedTransactionLink(
+  receipt: ExecutionReceipt,
+): string | undefined {
+  if (receipt.mode !== "live") return undefined;
+
+  return receipt.results.find(
+    (result) =>
+      result.verified === true &&
+      result.receiptStatus === "success" &&
+      result.transactionLink?.startsWith("https://"),
+  )?.transactionLink;
+}
+
 export function mergeAuditReceipts(
   ...collections: ExecutionReceipt[][]
 ): ExecutionReceipt[] {
